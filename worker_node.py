@@ -28,7 +28,7 @@ class Worker:
             work = self.consumer_receiver.recv_json()
             data = work['num']
             print("the received data is: ", data )
-            result = { 'consumer' : self.consumer_id, 'num' : data}
+            result = { 'worker' : self.consumer_id, 'num' : data}
             if data%2 == 0: 
                 self.server_sender.send_json(result)
                 print("sending to producer!")
