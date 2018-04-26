@@ -32,11 +32,11 @@ class Server:
         collecter_data = {}
         for x in xrange(1000):
             result = self.results_receiver.recv_json()
-            print("result: ", result['consumer'])
-            if collecter_data.has_key(result['consumer']):
-                collecter_data[result['consumer']] = collecter_data[result['consumer']] + 1
+            print("result: ", result['worker'])
+            if collecter_data.has_key(result['worker']):
+                collecter_data[result['worker']] = collecter_data[result['worker']] + 1
             else:
-                collecter_data[result['consumer']] = 1
+                collecter_data[result['worker']] = 1
             if x == 999:
                 pprint.pprint(collecter_data)
 
