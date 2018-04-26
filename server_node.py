@@ -20,9 +20,9 @@ class Server:
     def __init__(self):
         self.context = zmq.Context()
         self.results_receiver = self.context.socket(zmq.PULL)
-        self.results_receiver.bind("tcp://127.0.0.1:5558")     
+        self.results_receiver.bind("tcp://*:5558")     
         self.zmq_socket = self.context.socket(zmq.PUSH)
-        self.zmq_socket.bind("tcp://127.0.0.1:5557")   
+        self.zmq_socket.bind("tcp://*:5557")   
 
         self.threading_obj = threading.Thread(target=self.receiving)
         self.threading_obj.daemon = True
