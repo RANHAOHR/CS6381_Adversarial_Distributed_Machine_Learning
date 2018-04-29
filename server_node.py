@@ -36,27 +36,20 @@ X_train = np.vstack((X_train,np.ones(np.shape(X_train)))).T
 n_machine = 3
 n_batch = 2
 
-total_machine = n_batch * n_machine
 epoch = 1000
 
 class Server:
     """Implementation of the server for weights gathering"""
     def __init__(self):
         self.context = zmq.Context()
-        self.results_receiver = self.context.socket(zmq.PULL)
-        self.results_receiver.bind("tcp://*:5558")
-
-        self.results_receiver1 = self.context.socket(zmq.PULL)
-        self.results_receiver1.bind("tcp://*:5559")
-
+        batch_port = 5558
+        self.results_receivers = []
         self.register = []
         self.counter = []
         self.w_batch = np.zeros([n_machine, n_feat])
-        for x in xrange(n_batch):
-            self.register.append([0,0,0])
-            self.counter.append(0)
 
         self.w_new = np.zeros(n_feat)
+        self.signal = []
 
         self.zk_object = KazooClient(hosts='127.0.0.1:2181') 
         self.zk_object.start()
@@ -64,11 +57,19 @@ class Server:
         self.workers = []
         port = 5560
         self.scheduler_path = '/scheduler/'
-        
         self.mini_batch = []
         for i in range(n_batch):
-            self.scheduler_node = self.scheduler_path + "node_" + str(i)
+            self.scheduler_node = self.scheduler_path + "node_" + str(i) #initialize the batch node name
             self.mini_batch.append(self.scheduler_node)
+
+            self.register.append([0,0,0]) # initialize the counter and reigister for the batches
+            self.counter.append(0)
+            batch_addr = "tcp://*:"+ str(batch_port) #initialize the receiveing addr from the worker, each batch has an addr
+            self.results_receiver = self.context.socket(zmq.PULL)
+            self.results_receiver.bind(batch_addr)
+            self.results_receivers.append(self.results_receiver)
+            batch_port += 1
+            self.signal.append(1)
 
             for x in range(i*n_machine, (i+1)*n_machine):
                 worker_zmq = self.context.socket(zmq.PUSH)
@@ -79,73 +80,55 @@ class Server:
                 port += 1
                 print("self.workers",temp_addr )
 
-        self.group_1 = 1
-        self.group_2 = 1
 
         self.scheduler_thread = threading.Thread(target=self.scheduler)
         self.scheduler_thread.daemon = True
         self.scheduler_thread.start()
 
     def receiving(self):
-        ''' starting with the initial 0 weights '''
+        ''' starting the initialization of all worker nodes with 0 weights '''
         work_message = { 'num' : self.w_new.tolist()} #avoid deadlock, send initials
         for x in range(n_batch*n_machine):
-            print("x is ", x)
+            print("Finish initialize of worker node ", x)
             self.workers[x].send_json(work_message)
         time.sleep(1)
+        print("finished")
 
         while self.counter[0] <= epoch or self.counter[1] <= epoch:
-            if self.group_1 == 1:
-                print("inside")
-                result = self.results_receiver.recv_json()
-                w_value = np.array(result['num'])
-                print("server receives:", w_value)
-                w_id = int(result['worker'])
-                self.w_batch[w_id] = w_value
-                self.register[0][w_id] = 1
-                if sum(self.register[0]) == n_machine:
-                    self.w_new = np.mean(self.w_batch, axis=0)
-                    self.producer(0)
-            else:
-
-                self.counter[0] = epoch+1
-                print("stop send to group_1")
-                pass
-
-            if self.group_2 == 1:
-                result = self.results_receiver1.recv_json()
-                w_value = np.array(result['num'])
-                print("server receives:", w_value)
-                w_id = int(result['worker'])
-                w_id = w_id %3
-                self.w_batch[w_id] = w_value
-                self.register[1][w_id] = 1
-                if sum(self.register[1]) == n_machine:
-                    self.w_new = np.mean(self.w_batch, axis=0)
-                    self.producer(1)
-            else:
-                self.counter[1] = epoch+1
-                print("stop send to group_2")
-                pass
+            for j in range(n_batch):         
+                if self.signal[j] == 1:
+                    result = self.results_receivers[j].recv_json()
+                    w_value = np.array(result['num'])
+                    print("server receives:", w_value)
+                    w_id = int(result['worker'])
+                    w_id = w_id %3
+                    self.w_batch[w_id] = w_value
+                    self.register[j][w_id] = 1
+                    if sum(self.register[j]) == n_machine:
+                        self.w_new = np.mean(self.w_batch, axis=0)
+                        self.producer(j)
+                else:
+                    self.counter[j] = epoch+1
+                    print("stop send to worker batch: ", j)
+                    pass
 
 
     def producer(self, i_batch):
         # Start your result manager and workers before you start your producers
         work_message = { 'num' : self.w_new.tolist()}
         # print("work_message", work_message)
-        for x in range(i_batch * n_machine, (i_batch+1) * n_machine):
+        for x in range(i_batch*n_machine, (i_batch+1)*n_machine):
             self.workers[x].send_json(work_message)
             pass
         self.register[i_batch] = [0,0,0]
         self.counter[i_batch] += 1
-        print("self.counter ", self.counter )
+        print("self.counter ", self.counter[i_batch] )
         # computer the loss
         error = np.dot(X_train, self.w_new)-y_train
         squared_error = np.dot(error,error)
         rmse = math.sqrt(squared_error/n_train)
         print(self.counter, rmse)
-        # else:
-            # print("not ready yet!")
+
     def scheduler(self):
         while True:
             try:
@@ -153,8 +136,7 @@ class Server:
                 def watch_scheduler_0(data, stat, event):
                     if event != None: #wait for event to be alive and None(stable)
                         if event.type == "DELETED":
-                            for x in range(3):
-                                self.group_1 = 0
+                            self.signal[0] = 0
                             
                     time.sleep(0.5) #easy to stop the code
 
@@ -162,8 +144,7 @@ class Server:
                 def watch_scheduler_1(data, stat, event):
                     if event != None: #wait for event to be alive and None(stable)
                         if event.type == "DELETED":
-                            for x in range(3):
-                                self.group_2 = 0
+                            self.signal[1] = 0
                             
                     time.sleep(0.5) #easy to stop the code
 
