@@ -49,11 +49,13 @@ class Server:
         self.results_receiver1 = self.context.socket(zmq.PULL)
         self.results_receiver1.bind("tcp://*:5559")
 
-        self.counter = 0
         self.register = []
+        self.counter = []
         self.w_batch = np.zeros([n_machine, n_feat])
         for x in xrange(n_batch):
             self.register.append([0,0,0])
+            self.counter.append(0)
+
         self.w_new = np.zeros(n_feat)
 
         self.zk_object = KazooClient(hosts='127.0.0.1:2181') 
@@ -61,13 +63,6 @@ class Server:
 
         self.workers = []
         port = 5560
-        # for x in range(n_machine):
-        #     worker_zmq = self.context.socket(zmq.PUSH)
-        #     str_port = str(port)
-        #     temp_addr = "tcp://*:" + str_port
-        #     worker_zmq.bind(temp_addr)
-        #     self.workers.append(worker_zmq)
-        #     port += 1
         self.scheduler_path = '/scheduler/'
         
         self.mini_batch = []
@@ -97,12 +92,11 @@ class Server:
         for x in range(n_batch*n_machine):
             print("x is ", x)
             self.workers[x].send_json(work_message)
-            
-        print("out!")
         time.sleep(1)
 
-        while self.counter <= epoch:
+        while self.counter[0] <= epoch or self.counter[1] <= epoch:
             if self.group_1 == 1:
+                print("inside")
                 result = self.results_receiver.recv_json()
                 w_value = np.array(result['num'])
                 print("server receives:", w_value)
@@ -113,7 +107,10 @@ class Server:
                     self.w_new = np.mean(self.w_batch, axis=0)
                     self.producer(0)
             else:
+
+                self.counter[0] = epoch+1
                 print("stop send to group_1")
+                pass
 
             if self.group_2 == 1:
                 result = self.results_receiver1.recv_json()
@@ -127,7 +124,9 @@ class Server:
                     self.w_new = np.mean(self.w_batch, axis=0)
                     self.producer(1)
             else:
+                self.counter[1] = epoch+1
                 print("stop send to group_2")
+                pass
 
 
     def producer(self, i_batch):
@@ -138,7 +137,7 @@ class Server:
             self.workers[x].send_json(work_message)
             pass
         self.register[i_batch] = [0,0,0]
-        self.counter += 1
+        self.counter[i_batch] += 1
         print("self.counter ", self.counter )
         # computer the loss
         error = np.dot(X_train, self.w_new)-y_train
