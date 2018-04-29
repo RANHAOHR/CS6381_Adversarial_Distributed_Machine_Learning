@@ -22,9 +22,9 @@ class Scheduler():
     def __init__(self,scheduler_id, sever_addr):
         # self.server_addr = 
         self.context = zmq.Context()
-        self.server_addr = "tcp://"+ sever_addr + ":5559"
-        self.server_sender= self.context.socket(zmq.PULL)
-        self.server_sender.connect(self.server_addr)
+        # self.server_addr = "tcp://"+ sever_addr + ":5559"
+        # self.server_sender= self.context.socket(zmq.PULL)
+        # self.server_sender.connect(self.server_addr)
 
         self.scheduler_id = scheduler_id
         self.zk_object = KazooClient(hosts='127.0.0.1:2181') 
@@ -32,7 +32,8 @@ class Scheduler():
         self.path = '/worker/'
         self.worker_nodes = []
 
-        for x in range(n_machine):
+        self.batch_index = int(scheduler_id)
+        for x in range(self.batch_index*n_machine, (self.batch_index+1)*n_machine):
             node_name = "node_" + str(x)
             worker_node = self.path + node_name 
             self.worker_nodes.append(worker_node)  
@@ -52,43 +53,50 @@ class Scheduler():
         print("self.scheduler_node", self.scheduler_node)
 
     def worker_watcher(self): #default 3 workers
+        batch_num = self.batch_index*n_machine
         while True:
             try:
-                @self.zk_object.DataWatch(self.worker_nodes[0])
-                def watch_node_0(data, stat, event):
-                    if event != None: #wait for event to be alive and None(stable)
-                        if event.type == "DELETED":
-                            print("node 0 is deleted")
-                            self.zk_object.set(self.scheduler_node, b"1")
-                            pass
-                        elif event.type == "CREATED":
-                            print("worker node 0 is working fine")
-                            pass
-                    time.sleep(0.03) #easy to stop the code
+                if self.zk_object.exists(self.worker_nodes[0]):
+                    @self.zk_object.DataWatch(self.worker_nodes[0])
+                    def watch_node_0(data, stat, event):
+                        if event != None: #wait for event to be alive and None(stable)
+                            if event.type == "DELETED":
+                                print("node %s is deleted"%batch_num)
+                                if self.zk_object.exists(self.scheduler_node):
+                                    self.zk_object.delete(self.scheduler_node)
+                                pass
+                            elif event.type == "CREATED":
+                                print("worker node 0 is working fine")
+                                pass
+                        time.sleep(0.3) #easy to stop the code
 
-                @self.zk_object.DataWatch(self.worker_nodes[1])
-                def watch_node_1(data, stat, event):
-                    if event != None: #wait for event to be alive and None(stable)
-                        if event.type == "DELETED":
-                            print("node 1 is deleted")
-                            self.zk_object.set(self.scheduler_node, b"1")
-                            pass
-                        elif event.type == "CREATED":
-                            print("worker node 1 is working fine")
-                            pass
-                    time.sleep(0.03) #easy to stop the code
+                if self.zk_object.exists(self.worker_nodes[1]):
+                    @self.zk_object.DataWatch(self.worker_nodes[1])
+                    def watch_node_1(data, stat, event):
+                        if event != None: #wait for event to be alive and None(stable)
+                            if event.type == "DELETED":
+                                print("node %s is deleted"%(batch_num+1))
+                                if self.zk_object.exists(self.scheduler_node):
+                                    self.zk_object.delete(self.scheduler_node)
+                                pass
+                            elif event.type == "CREATED":
+                                print("worker node 1 is working fine")
+                                pass
+                        time.sleep(0.3) #easy to stop the code
 
-                @self.zk_object.DataWatch(self.worker_nodes[2])
-                def watch_node_2(data, stat, event):
-                    if event != None: #wait for event to be alive and None(stable)
-                        if event.type == "DELETED":
-                            print("node 2 is deleted")
-                            self.zk_object.set(self.scheduler_node, b"1")
-                            pass
-                        elif event.type == "CREATED":
-                            print("worker node 2 is working fine")
-                            pass
-                    time.sleep(0.03) #easy to stop the code
+                if self.zk_object.exists(self.worker_nodes[2]):
+                    @self.zk_object.DataWatch(self.worker_nodes[2])
+                    def watch_node_2(data, stat, event):
+                        if event != None: #wait for event to be alive and None(stable)
+                            if event.type == "DELETED":
+                                print("node %s is deleted"%(batch_num+2))
+                                if self.zk_object.exists(self.scheduler_node):
+                                    self.zk_object.delete(self.scheduler_node)
+                                pass
+                            elif event.type == "CREATED":
+                                print("worker node 2 is working fine")
+                                pass
+                        time.sleep(0.3) #easy to stop the code
 
             except KeyboardInterrupt:
                 print("stopped the node scheduler")

@@ -28,13 +28,15 @@ learning_rate = 0.005
 
 class Worker:
     """Implementation of the worker for gradient computation"""
-    def __init__(self, consumer_id, server_addr, port, scheduler_addr):
+    def __init__(self, consumer_id, server_addr, port, scheduler_id):
         self.consumer_id = consumer_id
         print("I am woker #%s" % (self.consumer_id))
         self.context = zmq.Context()
 
         self.server_addr = "tcp://" + server_addr + ":" + port
-        self.worker_addr = "tcp://" + server_addr + ":5558"
+
+        self.batch_port = str(5558 + int(scheduler_id))
+        self.worker_addr = "tcp://" + server_addr + ":" + self.batch_port
         # self.scheduler_addr = "tcp://" + scheduler_addr + ":5559"
         # self.scheduler_sender = self.context.socket(zmq.PUSH)
         # self.scheduler_sender.connect(self.scheduler_addr)
@@ -44,6 +46,7 @@ class Worker:
         # send work
         self.server_sender = self.context.socket(zmq.PUSH)
         self.server_sender.connect(self.worker_addr)
+        print("send to : ", self.worker_addr)
 
 
         self.w = np.zeros(X_train.shape[1])
@@ -89,8 +92,8 @@ class Worker:
 if __name__ == '__main__':
     consumer_id = sys.argv[1] if len(sys.argv) > 1 else "10001"
     port = sys.argv[2] if len(sys.argv) > 2 else "5560"
-    server_addr = sys.argv[3] if len(sys.argv) > 3 else "127.0.0.1" 
-    scheduler_addr = sys.argv[4] if len(sys.argv) > 4 else "127.0.0.1"
+    scheduler_id = sys.argv[3] if len(sys.argv) > 3 else "0"
+    server_addr = sys.argv[4] if len(sys.argv) > 4 else "127.0.0.1" 
 
-    worker = Worker(consumer_id, server_addr, port, scheduler_addr)
+    worker = Worker(consumer_id, server_addr, port, scheduler_id)
     worker.consumer()
