@@ -95,7 +95,7 @@ class Server:
             batch_port += 1
             self.signal.append(1)
 
-            self.RMSE.append([])
+            # self.RMSE.append([])
 
             for x in range(i*n_machine, (i+1)*n_machine):
                 worker_zmq = self.context.socket(zmq.PUSH)
@@ -129,7 +129,7 @@ class Server:
 
         while self.counter[0] <= epoch or self.counter[1] <= epoch:
             self.process(0)
-            lines = ax.plot(range(len(self.RMSE[self.live_batch])), self.RMSE[self.live_batch], 'r-', lw=2)
+            lines = ax.plot(range(len(self.RMSE)), self.RMSE, 'r-', lw=2)
             plt.xlabel('Epoch')
             plt.ylabel('RMSE')
             plt.xticks([0, 100, 200, 300, 400, 500, 600], ['0', '100', '200', '300', '400', '500', '600'])
@@ -151,7 +151,10 @@ class Server:
                 error = np.dot(X_train, self.w_new)-y_train
                 squared_error = np.dot(error,error)
                 rmse = math.sqrt(squared_error/n_train)
-                self.RMSE[j].append(rmse)
+                if self.live_batch == j:
+                    self.RMSE.append(rmse)
+                    pass
+                # self.RMSE[j].append(rmse)
                 print(self.counter, rmse)
                 self.producer(j)
         else:
