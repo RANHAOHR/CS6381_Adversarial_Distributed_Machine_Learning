@@ -11,6 +11,7 @@ import os
 import sys
 import time
 import threading
+from threading import Lock
 import zmq
 from random import randrange
 import numpy as np
@@ -41,15 +42,17 @@ def load_data(path):
     y = data.iloc[:, -1].values
     return (X, y)
 
+mutex = Lock()
 #X_train = 4*np.random.rand(100)
 #y_train = 2*X_train + 1 + 1*np.random.randn(100)
 #X_train = np.vstack((X_train,np.ones(np.shape(X_train)))).T
 
-(X,y) = load_data("redwine.dat")
+(X,y) = load_data("boston_housing.csv")
 scaler = StandardScaler()
 X = scaler.fit_transform(X)
 data = np.concatenate([X, np.ones((X.shape[0], 1)), y.reshape((len(y), 1))], axis=1)
-train_data, test_data = train_test_split(data, train_size=0.5)
+#train_data, test_data = train_test_split(data, train_size=0.5)
+train_data = data
 X_train, y_train = train_data[:, :-1], train_data[:, -1]
 
 
@@ -57,7 +60,23 @@ X_train, y_train = train_data[:, :-1], train_data[:, -1]
 n_machine = 3
 n_batch = 2
 
-epoch = 600
+epoch = 1000
+
+def evade_lr(x_start, z, cost_param, w):
+    w_n = w[0:-1]
+    w_b = w[-1]
+    x_start = x_start[0:-1]
+    x = np.copy(x_start)
+    z_prime = z-w_b
+    show_loss = []
+    for evade_step in range(1000):
+        x = x-0.0001*2*((np.dot(w_n, x)-z_prime)*w_n+cost_param*(x-x_start))
+        loss = (np.dot(w_n, x)+w_b-z)**2 + cost_param*np.dot(x-x_start, x-x_start)
+        show_loss.append(loss)
+    x = np.append(x, 1)
+    #plt.plot(range(1000),show_loss)
+    #plt.show()
+    return x
 
 class Server:
     """Implementation of the server for weights gathering"""
@@ -94,9 +113,6 @@ class Server:
             self.results_receivers.append(self.results_receiver)
             batch_port += 1
             self.signal.append(1)
-
-            # self.RMSE.append([])
-
             for x in range(i*n_machine, (i+1)*n_machine):
                 worker_zmq = self.context.socket(zmq.PUSH)
                 str_port = str(port)
@@ -129,22 +145,47 @@ class Server:
 
         while self.counter[0] <= epoch or self.counter[1] <= epoch:
             self.process(0)
+            mutex.acquire()
             lines = ax.plot(range(len(self.RMSE)), self.RMSE, 'r-', lw=2)
+            mutex.release()
             plt.xlabel('Epoch')
             plt.ylabel('RMSE')
-            plt.xticks([0, 100, 200, 300, 400, 500, 600], ['0', '100', '200', '300', '400', '500', '600'])
-            plt.yticks([0, 2, 4, 6],['0', '2', '4', '6'])
+            plt.xticks([0, 200, 400, 600, 800, 1000], ['0', '200', '400', '600', '800', '1000'])
+            plt.yticks([0, 5, 10, 15, 20, 25, 30],['0', '5', '10', '15', '20', '25', '30'])
             plt.pause(0.01)
+
+        # plt.savefig("results", bbox_inches="tight")
+        # plt.close() 
+        ''' start to evade'''
+        x_start = X_train[36]
+        x_adv = evade_lr(x_start, 33, 30, self.w_new)
+        y_adv = np.dot(self.w_new, x_adv)
+        # make data feasible
+        x_adv[0] = x_start[0]
+        x_adv[1] = x_start[1]
+
+        y_pred = np.dot(self.w_new, x_start)
+        y_adv = np.dot(self.w_new, x_adv)
+        x_start_raw = scaler.inverse_transform(np.array([x_start[0:-1]]))
+        x_adv_raw = scaler.inverse_transform(np.array([x_adv[0:-1]]))
+
+        np.set_printoptions(precision=2, suppress=True)
+        print("Original data", x_start_raw[0])
+        print("Predicted price before attack:",y_pred)
+        
+        print("Adversarial data", x_adv_raw[0])
+        print("Predicted price after attack",y_adv)
 
     def process(self, j):
         if self.signal[j] == 1:
             result = self.results_receivers[j].recv_json()
             w_value = np.array(result['num'])
-            print("server receives:", w_value)
+            # print("server receives:", w_value)
             w_id = int(result['worker'])
             w_id = w_id %3
             self.w_batch[w_id] = w_value
             self.register[j][w_id] = 1
+            mutex.acquire()
             if sum(self.register[j]) == n_machine:
                 self.w_new = np.mean(self.w_batch, axis=0)
                 # compute loss and then plot
@@ -154,9 +195,9 @@ class Server:
                 if self.live_batch == j:
                     self.RMSE.append(rmse)
                     pass
-                # self.RMSE[j].append(rmse)
                 print(self.counter, rmse)
                 self.producer(j)
+            mutex.release()
         else:
             self.counter[j] = epoch+1
             print("stop send to worker batch: ", j)

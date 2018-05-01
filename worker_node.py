@@ -33,15 +33,16 @@ logging.basicConfig() # set up logginga
 #y_train = 2*X_train + 1 + 1*np.random.randn(100)
 #X_train = np.vstack((X_train,np.ones(np.shape(X_train)))).T
 
-(X,y) = load_data("redwine.dat")
+(X,y) = load_data("boston_housing.csv")
 scaler = StandardScaler()
 X = scaler.fit_transform(X)
 data = np.concatenate([X, np.ones((X.shape[0], 1)), y.reshape((len(y), 1))], axis=1)
-train_data, test_data = train_test_split(data, train_size=0.5)
+train_data = data
+#train_data, test_data = train_test_split(data, train_size=0.5)
 X_train, y_train = train_data[:, :-1], train_data[:, -1]
 
 (n_train, n_feat) = X_train.shape
-learning_rate = 0.01
+learning_rate = 0.005
 
 class Worker:
     """Implementation of the worker for gradient computation"""
@@ -97,7 +98,7 @@ class Worker:
                 gradient = (np.dot(self.w, x_i)-y_i)*x_i
                 self.w = self.w - learning_rate*gradient
                 result = { 'worker' : self.consumer_id, 'num' : self.w.tolist()}
-                print("worker sends to server:", result['num'])
+                # print("worker sends to server:", result['num'])
                 self.server_sender.send_json(result)
                 self.counter += 1
                 print("counter, ", self.counter)                
