@@ -74,8 +74,13 @@ def evade_lr(x_start, z, cost_param, w):
         loss = (np.dot(w_n, x)+w_b-z)**2 + cost_param*np.dot(x-x_start, x-x_start)
         show_loss.append(loss)
     x = np.append(x, 1)
-    #plt.plot(range(1000),show_loss)
-    #plt.show()
+    plt.plot(range(1000),show_loss)
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss of the attacker')
+    # plt.show()
+    # time.sleep(20)
+    plt.savefig("attack.png", bbox_inches="tight")
+    plt.close() 
     return x
 
 class Server:
@@ -154,9 +159,9 @@ class Server:
             plt.yticks([0, 5, 10, 15, 20, 25, 30],['0', '5', '10', '15', '20', '25', '30'])
             plt.pause(0.01)
 
-        # plt.savefig("results", bbox_inches="tight")
-        # plt.close() 
         ''' start to evade'''
+        plt.savefig("defender.png", bbox_inches="tight")
+        plt.close() 
         x_start = X_train[36]
         x_adv = evade_lr(x_start, 33, 30, self.w_new)
         y_adv = np.dot(self.w_new, x_adv)
@@ -207,7 +212,7 @@ class Server:
         while self.counter[1] <= epoch: 
             self.process(1) 
             if self.signal[0] == 1:
-                time.sleep(0.5) #compensation for drawing time in main thread
+                time.sleep(0.1) #compensation for drawing time in main thread
             else:
                 time.sleep(0.01) #compensation for drawing time in main thread
 
