@@ -14,7 +14,6 @@ Ran Hao (rxh349@case.edu)  Tong Liang (liangtong39@gmail.com) Xiaodong Yang (xia
 
 ## Before running any nodes:
 - First go to the zookeeper directory and `cd /bin` then run the zookeeper servers by : `./zkServer.sh start`
-- Then run `python zookeeper_server.py`
 
 ## Run one batch of worker nodes:
 - Go to the package directory

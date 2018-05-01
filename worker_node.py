@@ -11,6 +11,15 @@ from kazoo.client import KazooClient
 from kazoo.client import KazooState
 
 import logging
+import pandas as pd
+from sklearn.cross_validation import train_test_split
+from sklearn.preprocessing import StandardScaler
+
+def load_data(path):
+    data = pd.read_csv(path, header=None)
+    X = data.iloc[:, :-1].values
+    y = data.iloc[:, -1].values
+    return (X, y)
 
 from kazoo.exceptions import (
     ConnectionClosedError,
@@ -20,11 +29,19 @@ from kazoo.exceptions import (
 
 logging.basicConfig() # set up logginga
 
-X_train = 4*np.random.rand(100)
-y_train = 2*X_train + 1 + 1*np.random.randn(100)
-X_train = np.vstack((X_train,np.ones(np.shape(X_train)))).T
+#X_train = 4*np.random.rand(100)
+#y_train = 2*X_train + 1 + 1*np.random.randn(100)
+#X_train = np.vstack((X_train,np.ones(np.shape(X_train)))).T
+
+(X,y) = load_data("redwine.dat")
+scaler = StandardScaler()
+X = scaler.fit_transform(X)
+data = np.concatenate([X, np.ones((X.shape[0], 1)), y.reshape((len(y), 1))], axis=1)
+train_data, test_data = train_test_split(data, train_size=0.5)
+X_train, y_train = train_data[:, :-1], train_data[:, -1]
+
 (n_train, n_feat) = X_train.shape
-learning_rate = 0.005
+learning_rate = 0.01
 
 class Worker:
     """Implementation of the worker for gradient computation"""
