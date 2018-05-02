@@ -11,6 +11,8 @@ Ran Hao (rxh349@case.edu)  Tong Liang (liangtong39@gmail.com) Xiaodong Yang (xia
 - Java: sudo add-apt-repository ppa:webupd8team/java ; sudo apt update ; sudo apt install oracle-java9-installer ;  sudo apt-get install openjdk-9-jre-headless
 - Zookeeper: Download the Zookeeper package from official website: http://www.gtlib.gatech.edu/pub/apache/zookeeper/ ; Uncompress: tar xvzf zookeeper-'version'.tar.gz
 - Kazoo: pip install Kazoo
+- Pandas: sudo pip install pandas
+- Scikit-learn: sudo pip install scikit-learn
 
 ## Before running any nodes:
 - First go to the zookeeper directory and `cd /bin` then run the zookeeper servers by : `./zkServer.sh start`
